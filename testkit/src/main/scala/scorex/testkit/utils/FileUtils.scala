@@ -1,8 +1,11 @@
 package scorex.testkit.utils
 
-import java.nio.file.Path
+import java.nio.file.{Files, Path}
 
+import scala.collection.JavaConverters._
 import org.scalacheck.Gen
+
+import scala.util.Try
 
 trait FileUtils {
 
@@ -10,15 +13,12 @@ trait FileUtils {
 
   val basePath: Path = java.nio.file.Files.createTempDirectory(s"scorex-${System.nanoTime()}")
 
-  sys.addShutdownHook {
-    remove(basePath)
-  }
-
-  def createTempFile: java.io.File = {
-    val dir = createTempDir
-    val prefix = scala.util.Random.alphanumeric.take(randomPrefixLength).mkString
-    val suffix = scala.util.Random.alphanumeric.take(randomPrefixLength).mkString
-    val file = java.nio.file.Files.createTempFile(dir.toPath, prefix, suffix).toFile
+  private def createTempDirForPrefix(prefix: String): java.io.File = {
+    val path = java.nio.file.Files.createTempDirectory(basePath, prefix)
+    sys.addShutdownHook {
+      remove(path)
+    }
+    val file = path.toFile
     file.deleteOnExit()
     file
   }
@@ -37,24 +37,7 @@ trait FileUtils {
     * Recursively remove all the files and directories in `root`
     */
   def remove(root: Path): Unit = {
-
-    @SuppressWarnings(Array("org.wartremover.warts.Recursion"))
-    def deleteRecursive(dir: java.io.File): Unit = {
-      for (file <- dir.listFiles) {
-        if (file.isDirectory){
-          deleteRecursive(file)
-        }
-        file.delete()
-      }
-    }
-
-    deleteRecursive(root.toFile)
-  }
-
-  private def createTempDirForPrefix(prefix: String): java.io.File = {
-    val file = java.nio.file.Files.createTempDirectory(basePath, prefix).toFile
-    file.deleteOnExit()
-    file
+    Files.walk(root).iterator().asScala.toSeq.reverse.foreach(path => Try(Files.delete(path)))
   }
 
 }
